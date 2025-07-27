@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OCR Web App – Bewerken met Realtime Berekening</title>
+  <title>OCR Web App – Finale Versie</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -17,30 +17,39 @@
       background-color: #fff;
       padding: 1rem;
       box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      border-radius: 8px;
     }
     h1 {
       text-align: center;
+      color: #333;
     }
     input[type="file"] {
       display: block;
-      margin: 1rem auto;
+      margin: 1.5rem auto;
     }
     #preview {
       width: 100%;
       max-height: 300px;
       object-fit: contain;
       margin-bottom: 1rem;
+      border-radius: 4px;
+      border: 1px solid #ddd;
     }
     button {
       display: block;
       width: 100%;
-      padding: 0.75rem;
+      padding: 0.85rem;
       background-color: #007bff;
       color: #fff;
       border: none;
       cursor: pointer;
       font-size: 1rem;
       margin-top: 0.5rem;
+      border-radius: 4px;
+      transition: background-color 0.2s;
+    }
+    button:hover:not(:disabled) {
+      background-color: #0056b3;
     }
     button:disabled {
       background-color: #aaa;
@@ -49,24 +58,30 @@
     table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 1rem;
+      margin-top: 1.5rem;
     }
     th, td {
       border: 1px solid #ccc;
-      padding: 0.5rem;
+      padding: 0.75rem;
       text-align: center;
     }
     th {
       background-color: #eee;
     }
     input.editField {
-      width: 90%;
-      padding: 0.25rem;
+      width: 95%;
+      padding: 0.5rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
     }
     button.copyBtn {
-      padding: 0.25rem 0.5rem;
+      padding: 0.5rem 0.75rem;
       font-size: 0.9rem;
       cursor: pointer;
+      background-color: #28a745;
+    }
+    button.copyBtn:hover:not(:disabled) {
+      background-color: #218838;
     }
   </style>
 </head>
@@ -74,9 +89,8 @@
   <div class="container">
     <h1>OCR Web App</h1>
     <input type="file" id="imageInput" accept="image/*">
-    <img id="preview" src="" alt="Preview" hidden>
+    <img id="preview" src="" alt="Voorbeeld afbeelding" hidden>
     <button id="processBtn" disabled>Verwerk afbeelding</button>
-    <!-- Tabel om de resultaten weer te geven -->
     <table id="resultTable" hidden>
       <thead>
         <tr>
@@ -90,7 +104,6 @@
     </table>
   </div>
   
-  <!-- Tesseract.js library -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
   <script>
     const imageInput = document.getElementById('imageInput');
@@ -99,7 +112,6 @@
     const resultTable = document.getElementById('resultTable');
     const resultTbody = resultTable.querySelector('tbody');
 
-    // Toon de afbeelding zodra deze is gekozen
     imageInput.addEventListener('change', function(event) {
       const file = event.target.files[0];
       if (file) {
@@ -112,60 +124,83 @@
         reader.readAsDataURL(file);
       }
     });
+    
+    // **NIEUWE UNIVERSELE FUNCTIE**
+    // Deze functie normaliseert elke string naar een correct getal.
+    function normalizeToNumber(text) {
+        // Behoud het teken (+ of -)
+        const sign = text.trim().startsWith('-') ? '-' : '+';
+        // Haal ALLE niet-cijfers weg
+        const digits = text.replace(/[^\d]/g, '');
 
-    // Helper functie: bereken gedeeld door 2 en toon resultaat met 2 decimalen en komma als decimaalteken
-    function updateCalculatedValue(editInput, calcCell) {
-      let normalizedValue = editInput.value;
-      // Verwijder punten (bijv. duizendtallen)
-      normalizedValue = normalizedValue.replace(/\./g, '');
-      // Vervang komma met punt voor de parse
-      normalizedValue = normalizedValue.replace(/,/g, '.');
-      const numberValue = parseFloat(normalizedValue);
-      if (!isNaN(numberValue)) {
-        const result = numberValue / 2;
-        // Format met 2 decimalen, vervang decimaalpunt door komma
-        let formatted = result.toFixed(2).replace('.', ',');
-        calcCell.textContent = formatted;
-      } else {
-        calcCell.textContent = "Ongeldig nummer";
-      }
+        if (digits.length === 0) {
+            return '';
+        }
+
+        // Plaats de punt terug op de juiste plek
+        if (digits.length > 2) {
+            return `${sign}${digits.substring(0, digits.length - 2)}.${digits.substring(digits.length - 2)}`;
+        } else {
+            return `${sign}0.${digits.padStart(2, '0')}`;
+        }
     }
 
-    // Kopieer de tekst in de cel naar het klembord
-    function copyToClipboard(text) {
+
+    function updateCalculatedValue(editInput, calcCell) {
+        const normalizedNumberStr = normalizeToNumber(editInput.value);
+        const numberValue = parseFloat(normalizedNumberStr);
+      
+        if (!isNaN(numberValue)) {
+            const result = numberValue / 2;
+            calcCell.textContent = result.toFixed(2);
+        } else {
+            calcCell.textContent = "Ongeldig";
+        }
+    }
+
+    function copyToClipboard(text, button) {
       navigator.clipboard.writeText(text).then(() => {
-        alert("Waarde gekopieerd: " + text);
+        const originalText = button.textContent;
+        button.textContent = "Gekopieerd!";
+        button.disabled = true;
+        setTimeout(() => {
+          button.textContent = originalText;
+          button.disabled = false;
+        }, 2000);
       }).catch(err => {
         alert("Kopiëren mislukt");
         console.error(err);
       });
     }
 
-    // Verwerk de afbeelding met Tesseract.js en bouw de tabel
     processBtn.addEventListener('click', function() {
-      // Maak de tabel leeg
       resultTbody.innerHTML = "";
       resultTable.hidden = true;
       processBtn.disabled = true;
-      
+      processBtn.textContent = "Verwerken...";
+
       Tesseract.recognize(
         preview.src,
-        'nld', // Taal instellen op Nederlands
+        'nld',
         { logger: m => console.log(m) }
       ).then(({ data: { text } }) => {
-        // Filter de tekst: alleen cijfers, komma's en nieuwe regels
-        const filteredText = text.replace(/[^0-9,\n\.]/g, '');
-        // Splits de tekst op nieuwe regels en filter lege regels eruit
-        const lines = filteredText.split('\n').map(line => line.trim()).filter(line => line !== '');
+        const lines = text.split('\n')
+          .map(line => {
+            // Zoek alleen naar regels met een '+'
+            if (line.includes('+')) {
+              // Isoleer het deel met het getal
+              const match = line.match(/\+[\d,.]+/);
+              if (match) {
+                 // Gebruik de nieuwe functie om het getal te normaliseren
+                 return normalizeToNumber(match[0]);
+              }
+            }
+            return '';
+          })
+          .filter(line => line.trim() !== '');
         
-        // Voor elke regel, maak een rij met 3 kolommen:
-        // 1. Bewerkbare input met de OCR-regel.
-        // 2. Het getal gedeeld door 2 (realtime berekening met 2 decimalen).
-        // 3. Een knop om de berekende waarde te kopiëren naar het klembord.
         lines.forEach(line => {
           const row = document.createElement('tr');
-          
-          // Kolom 1: Bewerken OCR regel
           const cellLeft = document.createElement('td');
           const editInput = document.createElement('input');
           editInput.type = "text";
@@ -173,23 +208,19 @@
           editInput.value = line;
           cellLeft.appendChild(editInput);
           
-          // Kolom 2: Gedeeld door 2 resultaat
           const cellRight = document.createElement('td');
-          // Initiele berekening
           updateCalculatedValue(editInput, cellRight);
           
-          // Realtime update bij wijzigen van de input
           editInput.addEventListener('input', () => {
             updateCalculatedValue(editInput, cellRight);
           });
           
-          // Kolom 3: Kopieer naar klembord knop
           const cellCopy = document.createElement('td');
           const copyBtn = document.createElement('button');
           copyBtn.className = "copyBtn";
           copyBtn.textContent = "Kopieer";
           copyBtn.addEventListener('click', () => {
-            copyToClipboard(cellRight.textContent);
+            copyToClipboard(cellRight.textContent, copyBtn);
           });
           cellCopy.appendChild(copyBtn);
           
@@ -201,9 +232,11 @@
         
         resultTable.hidden = false;
         processBtn.disabled = false;
+        processBtn.textContent = "Verwerk afbeelding";
       }).catch(error => {
         console.error("Er is een fout opgetreden:", error);
         processBtn.disabled = false;
+        processBtn.textContent = "Verwerk afbeelding";
       });
     });
   </script>
